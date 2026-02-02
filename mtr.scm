@@ -120,21 +120,20 @@ int play(void) {
 
 (define-record-type channel
  (channel freq current-offset wavegen volume total-secs)
- (freq channel-freq)
+ channel?
+ (freq channel-freq set-channel-freq!)
  (current-offset channel-offset set-channel-offset!)
  (wavegen channel-wavegen)
- (volume channel-volume set-channel-volume!)
- (total-secs channel-total-secs)
+ (volume channel-volume set-channel-volume!))
 
 
 
 (c-define (get-sample offset) (float) float "get_sample"
  (define len  (/ 1 (length channels)))
  (apply +
-  (map (lambda (channel)
-        (let [[current-offset (+ (channel-offset channel) offset)]]
-         (if (>= current-offset (/ 1 freq))
-          (set! current-offset (- current-offset (/ 1 freq))))
-         (set-channel-offset! current-offset)
-         (* (channel-volume channel) ((channel-wavegen channel) current offset) )
-         )) channels))
+  (vector-map (lambda (channel)
+               (let [[current-offset (+ (channel-offset channel) offset)]]
+                (if (>= current-offset (/ 1 freq))
+                 (set! current-offset (- current-offset (/ 1 freq))))
+                (set-channel-offset! current-offset)
+                (* (channel-volume channel) ((channel-wavegen channel) current-offset) len))) channels))
