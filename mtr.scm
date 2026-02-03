@@ -3,7 +3,7 @@
 (import (scheme base))
 
 (c-declare
- <<c-declare-end
+#<<c-declare-end
 
  #include <soundio/soundio.h>
 
@@ -13,7 +13,7 @@
  //#include <math.h>
 
 
-
+static float get_sample(float);
 
 static float seconds_offset = 0.0f;
 
@@ -116,24 +116,45 @@ int play(void) {
     return 0;
 }
 
- c-declare-end)
+c-declare-end
+)
 
 (define-record-type channel
- (channel freq current-offset wavegen volume total-secs)
+ (channel freq current-offset wavegen volume)
  channel?
  (freq channel-freq set-channel-freq!)
  (current-offset channel-offset set-channel-offset!)
  (wavegen channel-wavegen)
  (volume channel-volume set-channel-volume!))
 
+(define pi (acos -1))
 
+(define (sinewave freq offset)
+ (sin (* 2 pi freq offset)))
 
-(c-define (get-sample offset) (float) float "get_sample"
- (define len  (/ 1 (length channels)))
- (apply +
-  (vector-map (lambda (channel)
-               (let [[current-offset (+ (channel-offset channel) offset)]]
-                (if (>= current-offset (/ 1 freq))
-                 (set! current-offset (- current-offset (/ 1 freq))))
-                (set-channel-offset! current-offset)
-                (* (channel-volume channel) ((channel-wavegen channel) current-offset) len))) channels))
+(c-define (get-sample offset) (float) float "get_sample" "static"
+ (if (pair? rows)
+  (let [[row (car rows)]]
+   (if (pair? row)
+    (begin
+     (if (> (car row) 0)
+      (set-car! row (- (car row) 1))
+      (set! rows (cdr rows)))
+     (let* [[channels (cdr row)]
+            [len  (/ 1 (vector-length channels))]]
+      (vector-fold + 0
+       (vector-map (lambda (ch)
+                    (let* [[freq (channel-freq ch)]
+                           [addup-offset (+ (channel-offset ch) offset)]
+                           [current-offset (- addup-offset (* freq (truncate (/ addup-offset freq))))]]  ; (fmod addup-offset freq)
+                     (set-channel-offset! ch current-offset)
+                     (* (channel-volume ch) ((channel-wavegen ch) freq current-offset) len))) channels))))
+    (begin
+     (make-thread add-notes "add notes")
+     (set! rows (cdr rows))
+     (get-sample offset))))
+  0.0))
+
+(define rows (list (cons 20000 (vector (channel 440 0 sinewave 1)))))
+
+((c-lambda () void "play();"))
