@@ -17,6 +17,8 @@ static float get_sample(float);
 
 static float seconds_offset = 0.0f;
 
+static int playing = 0;
+
 static void write_callback(struct SoundIoOutStream *outstream,
         int frame_count_min, int frame_count_max)
 {
@@ -107,7 +109,7 @@ int play(void) {
         return 1;
     }
 
-    for (;;)
+    for (;playing;)
         soundio_wait_events(soundio);
 
     soundio_outstream_destroy(outstream);
@@ -120,17 +122,21 @@ c-declare-end
 )
 
 (define-record-type channel
- (channel freq current-offset wavegen volume)
+ (channel freq current-offset wavegen volume envelop)
  channel?
- (freq channel-freq set-channel-freq!)
- (current-offset channel-offset set-channel-offset!)
- (wavegen channel-wavegen)
- (volume channel-volume set-channel-volume!))
+ [freq channel-freq set-channel-freq!]
+ [current-offset channel-offset set-channel-offset!]
+ [wavegen channel-wavegen]
+ [volume channel-volume]
+ [envelop channel-envelop])
 
 (define pi (acos -1))
 
 (define (sinewave freq offset)
  (sin (* 2 pi freq offset)))
+
+(define (channel->sample ch)
+ ((channel-envelop ch) (channel-offset ch) ((channel-wavegen ch) (channel-freq ch) (channel-offset ch))))
 
 (c-define (get-sample offset) (float) float "get_sample" "static"
  (if (pair? rows)
@@ -148,13 +154,15 @@ c-declare-end
                            [addup-offset (+ (channel-offset ch) offset)]
                            [current-offset (- addup-offset (* freq (truncate (/ addup-offset freq))))]]  ; (fmod addup-offset freq)
                      (set-channel-offset! ch current-offset)
-                     (* (channel-volume ch) ((channel-wavegen ch) freq current-offset) len))) channels))))
+                     (* (channel-volume ch) (channel->sample ch) len))) channels))))
     (begin
      (make-thread add-notes "add notes")
      (set! rows (cdr rows))
      (get-sample offset))))
-  0.0))
+  (begin
+   ((c-lambda () void "playing = 0;"))
+   0.0)))
 
-(define rows (list (cons 20000 (vector (channel 440 0 sinewave 1)))))
+(define rows (list (cons 20000 (vector (channel 440 0 sinewave 1 (lambda (offset x) x))))))
 
-((c-lambda () void "play();"))
+((c-lambda () void "playing = 1; play();"))
