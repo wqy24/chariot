@@ -1,6 +1,6 @@
 ; This is gambit scheme code using Gambit 93f8107
 
-(import (scheme base))
+(import (scheme base) (scheme-inexact) (wqy24 assert) #;(srfi 133))
 
 (c-declare
 #<<c-declare-end
@@ -121,22 +121,52 @@ int play(void) {
 c-declare-end
 )
 
+(define-record-type event
+ (event freq effect wavegen volume envelope state)
+ event?
+ [freq event-freq]
+ [effect event-effect]
+ [wavegen event-wavegen]
+ [volume event-volume]
+ [envelope event-envelope]
+ [state event-state])
+
 (define-record-type channel
- (channel freq current-offset wavegen volume envelop)
+ (channel freq current-offset wavegen volume envelope state)
  channel?
  [freq channel-freq set-channel-freq!]
  [current-offset channel-offset set-channel-offset!]
- [wavegen channel-wavegen]
- [volume channel-volume]
- [envelop channel-envelop])
+ [wavegen channel-wavegen set-channel-wavegen!]
+ [volume channel-volume set-channel-volume!]
+ [envelope channel-envelope set-channel-envelope!]
+ [state channel-state set-channel-state!])
 
 (define pi (acos -1))
+(define e (exp 1))
 
 (define (sinewave freq offset)
  (sin (* 2 pi freq offset)))
 
 (define (channel->sample ch)
- ((channel-envelop ch) (channel-offset ch) ((channel-wavegen ch) (channel-freq ch) (channel-offset ch))))
+ ((channel-envelope ch) (channel-offset ch) (channel-state ch) ((channel-wavegen ch) (channel-freq ch) (channel-offset ch))))
+
+(define (apply-event! ch evt)
+ (assert ch channel? "Not a channel")
+ (assert evt event? "Not an event")
+ (cond
+  [(event-wavegen evt)
+   (set-channel-wavegen! ch (event-wavegen evt))
+   (set-channel-offset! ch 0)
+   (set-channel-envelope ch (event-envelope evt))])
+ (let [[evt-freq (event-freq evt)]]
+  (cond
+   [(not evt-freq)]
+   [(number? evt-freq)
+    (set-channel-freq! evt-freq)]
+   [(procedure? evt-freq)
+    (set-channel-freq ch (evt-freq (channel-freq ch)))]
+   [else (error "Wrong type for event-freq")])))
+
 
 (c-define (get-sample offset) (float) float "get_sample" "static"
  (if (pair? rows)
@@ -163,6 +193,12 @@ c-declare-end
    ((c-lambda () void "playing = 0;"))
    0.0)))
 
-(define rows (list (cons 20000 (vector (channel 440 0 sinewave 1 (lambda (offset x) x))))))
+(define (init-channels! count)
+ (if channels
+  (error "Channel multiple init" channels)
+  (set! channels (make-vector count (channel 0 0 #f 0 #f #f)))))
+
+(define channels #f)
+(define events (list (cons 20000 (vector (event 440 #f sinewave 1 (lambda (offset state x) x))))))
 
 ((c-lambda () void "playing = 1; play();"))
