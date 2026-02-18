@@ -1,6 +1,6 @@
 ; This is gambit scheme code using Gambit 93f8107
 
-(import (scheme base) (scheme-inexact) (wqy24 assert) #;(srfi 133))
+(import (scheme base) (scheme inexact) (wqy24 assert) #;(srfi 133))
 
 (c-declare
 #<<c-declare-end
@@ -165,7 +165,14 @@ c-declare-end
     (set-channel-freq! evt-freq)]
    [(procedure? evt-freq)
     (set-channel-freq ch (evt-freq (channel-freq ch)))]
-   [else (error "Wrong type for event-freq")])))
+   [else (error "Wrong type for event-freq")]))
+ (let [[evt-vol (event-volume evt)]]
+  (cond
+   [(not evt-vol)]
+   [(number? evt-vol)
+    (set-channel-volume! ch evt-vol)]))
+ (when (event-state evt)
+  (set-channel-state! ch (event-state evt))))
 
 
 (c-define (get-sample offset) (float) float "get_sample" "static"
@@ -175,14 +182,15 @@ c-declare-end
     (begin
      (if (> (car row) 0)
       (set-car! row (- (car row) 1))
-      (set! rows (cdr rows)))
-     (let* [[channels (cdr row)]
-            [len  (/ 1 (vector-length channels))]]
+      (begin
+       (set! rows (cdr rows))
+       (vector-for-each apply-events! channels evt)))
+     (let* [[channel-volumes  (/ 1 (vector-length channels))]
+            [events (cdr rows)]]
       (vector-fold + 0
        (vector-map (lambda (ch)
-                    (let* [[freq (channel-freq ch)]
-                           [addup-offset (+ (channel-offset ch) offset)]
-                           [current-offset (- addup-offset (* freq (truncate (/ addup-offset freq))))]]  ; (fmod addup-offset freq)
+                    (let* [[addup-offset (+ (channel-offset ch) offset)]
+                           [current-offset (- addup-offset (* freq (truncate (/ addup-offset freq))))]]
                      (set-channel-offset! ch current-offset)
                      (* (channel-volume ch) (channel->sample ch) len))) channels))))
     (begin
@@ -194,11 +202,14 @@ c-declare-end
    0.0)))
 
 (define (init-channels! count)
- (if channels
-  (error "Channel multiple init" channels)
-  (set! channels (make-vector count (channel 0 0 #f 0 #f #f)))))
+ (set! channels (make-vector count (channel 0 0 #f 0 #f #f))))
+
+(define tick-frames 2000)
+
 
 (define channels #f)
-(define events (list (cons 20000 (vector (event 440 #f sinewave 1 (lambda (offset state x) x))))))
+(define rows (list (cons 200 (vector (event 440 #f sinewave 1 (lambda (offset state x) x) 'release)))))
 
+;; Test sound play
+(init-channels! 1)
 ((c-lambda () void "playing = 1; play();"))
