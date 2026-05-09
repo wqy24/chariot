@@ -4,21 +4,19 @@
  (begin
   (define (enveloped e1 e2 y)
    (+ (* (/ (- e1 e2)) (+ y 1)) e2))
-  (define (throttler obj head) #;(node1 node2 freq offset envelope1 envelope)
+  (define (throttler obj head) #;(node1 node2 (x . y) ... repeat) 
    (lambda (x)
-    (let [[n1 (node1 obj)]
-          [n2 (node2 obj)]
-          [f  (freq  obj)]
+    (let [[f  (freq  obj)]
           [e1 (envelope1 obj)]
           [e2 (envelope2 obj)]
 	  [o  (offset obj)]]
-     (enveloped (e1 x) (e2 x) (enveloped n1 n2 (cos (* 2 (acos -1) f (- x o))))))))
+     (enveloped (e1 x) (e2 x) (cos (* 2 (acos -1) f (- x o)))))))
   (define (node1 obj)
    (car obj))
   (define (node2 obj)
    (cadr obj))
   (define (freq obj)
-   (if (< (length obj) 3) 1 (third obj)))
+   (if (< (length obj) 1) 1 (vector-ref 1 obj)))
   (define (envelope1 obj)
    (if (< (length obj) 5) (lambda (x) 1) (read-func (fifth obj) head)))
   (define (envelope2 obj)

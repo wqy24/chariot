@@ -1,5 +1,5 @@
 ; Transfer 24-bit ints into bytevector with s24_LE format
-(define-library (vectr write-sample)
+(define-library (chariot write-sample)
  (import (scheme base) (wqy24 assert) (srfi 1))
  (export write-samples!)
  (begin

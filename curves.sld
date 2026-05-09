@@ -1,5 +1,5 @@
 (define-library (chariot curves)
- (import (scheme base) (scheme inexact) (srfi 133) (wqy24 assert))
+ (import (scheme base) (scheme inexact) (srfi 133) (wqy24 assert) (wqy24 math))
  (export curve)
  (begin
   (define (curvepoint-deriv1 p0 p1 p2 p3 p4 p5)
@@ -120,10 +120,23 @@
    (assert ps
     (lambda (ps)
      (apply
-      (lambda (p0 p0 p2 p3 p4 p5)
-       (let [[exs (vector-map (curvepoint-deriv1 p0 p1 p2 p3 p4 p5) (extremum-deriv1 p0 p1 p2 p3 p4 p5))]]
-        (or
-         (vector-every (lambda (x) (>= x 0)))
-         (vecotr-every (lambda (x) (<= x 0))))))) ps)))
-  (define (curve p0 p1 p2 p3 p4 p5) ; Returns a lazy list
-   )))
+      (lambda (p0 p1 p2 p3 p4 p5)
+       (let* [[deriv1 (curvepoint-deriv1 p0 p1 p2 p3 p4 p5)]]
+        (call/cc
+         (lambda (exit)
+          (vector-fold
+           (lambda (sig x)
+            (cond
+             [(< 0 x 1)
+              (define dr (deriv x))
+              (if (and (not (zero? sig)) (or (zero? sig) (= sig (sign dr))))
+               (sign dr)
+               (exit #f))]
+             [else
+              (define dr (if (<= x 0) (deriv1 0) (deriv1 1)))
+              (if (or (and (<= sig 0) (<= dr 0)) (and (>= sig 0)))
+               (sign dr)
+               (exit #f))])) 0 (extremum-deriv1 p0 p1 p2 p3 p4 p5)
+          #t))))) ps))))
+  (define (curve p0 p1 p2 p3 p4 p5 divisions) ; Returns a lazy list
+   (validate p0 p1 p2 p3 p4 p5))))

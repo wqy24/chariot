@@ -1,5 +1,5 @@
-(define-library (vectr read-note)
- (import (scheme base) (vectr parse-freq) (vectr throttle) (scheme char) (scheme read) (srfi 1))
+(define-library (chariot read-note)
+ (import (scheme base) (vectr parse-freq) (chariot curve) (scheme char) (scheme read) (srfi 1))
  (export read-notes)
  (begin
   (define (read-note head port)
