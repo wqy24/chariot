@@ -1,0 +1,3 @@
+[submodule "wqy24"]
+	path = wqy24
+	url = git@github.com:wqy24/wqy24.git
