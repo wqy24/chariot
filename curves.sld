@@ -139,4 +139,14 @@
                (exit #f))])) 0 (extremum-deriv1 p0 p1 p2 p3 p4 p5)
           #t))))) ps))))
   (define (curve p0 p1 p2 p3 p4 p5 divisions) ; Returns a lazy list
-   (validate p0 p1 p2 p3 p4 p5))))
+   (validate p0 p1 p2 p3 p4 p5)
+   (define step (/ 1 divisions))
+   (define eps (/ step 2))
+   (define dr1 (curvepoint-deriv1 p0 p1 p2 p3 p4 p5))
+   (define point (curvepoint p0 p1 p2 p3 p4 p5))
+   (let again [[cur step]]
+    (if (<= (abs (- cur 1)) eps)
+     '()
+     (cons
+      ()
+      (delay again)))))))
