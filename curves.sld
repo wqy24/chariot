@@ -1,5 +1,5 @@
 (define-library (chariot curves)
- (import (scheme base) (scheme inexact) (srfi 133) (wqy24 assert) (wqy24 math))
+ (import (scheme base) (chariot settings) (scheme inexact) (srfi 133) (wqy24 assert) (wqy24 math))
  (export curve)
  (begin
   (define (curvepoint-deriv1 p0 p1 p2 p3 p4 p5)
@@ -108,14 +108,27 @@
              #f)))
           #t)))) ps))))
   (define (curve p0 p1 p2 p3 p4 p5 divisions) ; Returns a lazy list
-   (validate p0 p1 p2 p3 p4 p5)
-   (define step (/ 1 divisions))
-   (define eps (/ step 2))
-   (define dr1 (curvepoint-deriv1 p0 p1 p2 p3 p4 p5))
-   (define point (curvepoint p0 p1 p2 p3 p4 p5))
-   (let again [[cur step]]
-    (if (<= (abs (- cur 1)) eps)
-     '()
-     (cons
-      ()
-      (delay again)))))))
+   (let-values [[[x0 y0] (car+cdr p0)]
+                [[x1 y1] (car+cdr p1)]
+                [[x2 y2] (car+cdr p2)]
+                [[x3 y3] (car+cdr p3)]
+                [[x4 y4] (car+cdr p4)]
+                [[x5 y5] (car+cdr p5)]]
+    (validate x0 x1 x2 x3 x4 x5)
+    (define step (/ 1 divisions))
+    (define eps (/ step 2))
+    (define dr1-x (curvepoint-deriv1 x0 x1 x2 x3 x4 x5))
+    (define point-x (curvepoint x0 x1 x2 x3 x4 x5))
+    (define point-y (curvepoint y0 y1 y2 y3 y4 y5))
+    (let again [[cur step] [x_ 0]]
+     (define t
+      (let loop [curt x_]]
+       (cond
+        [(>= curt 1) 1]
+        [(<= (abs (- (point curt) cur)) CURVE-X-EPSILON) curt]
+        [else (- curt (/ (point-x curt) (dr1-x curt)))])))
+     (if (<= (abs (- cur 1)) eps)
+      '()
+      (cons
+       (point-y t)
+       (delay (again (+ cur step) t))))))))
