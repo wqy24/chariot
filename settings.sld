@@ -1,5 +1,6 @@
 (define-library (chariot settings)
- (import)
- (export CURVE-X-EPSILON)
+ (import (scheme base))
+ (export CURVE-X-EPSILON ITER-STEP)
  (begin
-  (define CURVE-X-EPSILON 1.0e-9)))
+  (define CURVE-X-EPSILON 1.0e-6)
+  (define ITER-STEP 1/44100)))

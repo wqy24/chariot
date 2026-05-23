@@ -1,5 +1,5 @@
 (define-library (chariot curves)
- (import (scheme base) (chariot settings) (scheme inexact) (srfi 133) (wqy24 assert) (wqy24 math))
+ (import (scheme base) (scheme lazy) (chariot settings) (wqy24 debug) (srfi 1) (wqy24 assert) (wqy24 math))
  (export curve)
  (begin
   (define (curvepoint-deriv1 p0 p1 p2 p3 p4 p5)
@@ -28,8 +28,7 @@
             [t^3 (* t t^2)]
             [t^4 (* t t^3)]
             [t^5 (* t t^4)]]
-      (+ (* c5 t^5)
-         (* c4 t^4)
+      (+ (* c4 t^4)
          (* c3 t^3)
          (* c2 t^2)
          (* c1 t)
@@ -53,7 +52,7 @@
          [d (+ (* p2 20)
                (* p1 -40)
                (* p0 20))]]
-    (call-with-values (lambda x x) (shengjin a b c d))))
+    (call-with-values (lambda () (shengjin a b c d)) (lambda x x))))
   (define (curvepoint p0 p1 p2 p3 p4 p5) ; Five-order bezier curvepoint (normalized)
    (let [[c5 (+ p5
                 (* p4 -5)
@@ -86,6 +85,7 @@
          (* c2 t^2)
          (* c1 t)
          p0)))))
+
   (define (validate . ps)
    (assert ps
     (lambda (ps)
@@ -94,19 +94,19 @@
        (let [[deriv1 (curvepoint-deriv1 p0 p1 p2 p3 p4 p5)]]
         (let loop [[sig 0] [to-validate (extremum-deriv1 p0 p1 p2 p3 p4 p5)]]
          (if (pair? to-validate)
-          (define x (car (to-validate)))
-          (if (< 0 x 1)
-           (let* [[dr (deriv1 x)] [sigdr (sign dr)]]
-            (if (and (not (zero? dr)) (or (zero? sig) (= sigdr sig)))
-             (loop sigdr (cdr to-validate))
-             #f))
-           (let* [[dr (if (positive? x) (deriv1 1) (deriv1 0))]
-                  [sigdr (sign dr)]]
-            (if (or (and (<= sigdr 0) (<= sig 0))
-                    (and (>= sigdr 0) (>= sig 0)))
-             (loop sigdr (cdr to-validate))
-             #f)))
-          #t)))) ps))))
+          (let [[x (car to-validate)]]
+           (if (< p0 x p5)
+            (let* [[dr (deriv1 x)] [sigdr (sign dr)]]
+             (if (and (not (zero? dr)) (or (zero? sig) (= sigdr sig)))
+              (loop sigdr (cdr to-validate))
+              #f))
+            (let* [[dr (if (> x p0) (deriv1 p5) (deriv1 p0))]
+                   [sigdr (sign dr)]]
+             (if (and (not (zero? dr)) (or (zero? sig) (= sigdr sig)))
+              (loop sigdr (cdr to-validate))
+              #f))))
+          #t)))) ps)) "Bad curve"))
+
   (define (curve p0 p1 p2 p3 p4 p5 divisions) ; Returns a lazy list
    (let-values [[[x0 y0] (car+cdr p0)]
                 [[x1 y1] (car+cdr p1)]
@@ -114,21 +114,27 @@
                 [[x3 y3] (car+cdr p3)]
                 [[x4 y4] (car+cdr p4)]
                 [[x5 y5] (car+cdr p5)]]
+    (if (= y0 y5) (error "Curve not appliable" (list p0 p1 p2 p3 p4 p5)))
+    (if (>= x0 x5) (error "You can't go back through the time!" (list p0 p1 p2 p3 p4 p5))) ; Should never occur
     (validate x0 x1 x2 x3 x4 x5)
-    (define step (/ 1 divisions))
-    (define eps (/ step 2))
-    (define dr1-x (curvepoint-deriv1 x0 x1 x2 x3 x4 x5))
-    (define point-x (curvepoint x0 x1 x2 x3 x4 x5))
-    (define point-y (curvepoint y0 y1 y2 y3 y4 y5))
-    (let again [[cur step] [x_ 0]]
-     (define t
-      (let loop [curt x_]]
-       (cond
-        [(>= curt 1) 1]
-        [(<= (abs (- (point curt) cur)) CURVE-X-EPSILON) curt]
-        [else (- curt (/ (point-x curt) (dr1-x curt)))])))
-     (if (<= (abs (- cur 1)) eps)
-      '()
-      (cons
-       (point-y t)
-       (delay (again (+ cur step) t))))))))
+    (let* [[step (/ 1 divisions)]
+           [eps (/ step 2)]
+           [point-x (curvepoint x0 x1 x2 x3 x4 x5)]
+           [point-y (curvepoint y0 y1 y2 y3 y4 y5)]]
+     (let again [[cur 0] [t0 x0] [samples 0]]
+      (if (< samples divisions)
+       (let*
+        [[t (let iter [[curt t0] [iter-step ITER-STEP]]
+             (define stepped (+ curt iter-step))
+             ;(debug "target-x" cur)
+             ;(debug "curt" curt)
+             ;(debug "iter-step" iter-step)
+             ;(debug "x" (point-x curt))
+             (cond
+              [(<= (abs (- (point-x curt) cur)) CURVE-X-EPSILON) curt]
+              [(> (point-x stepped) cur) (iter curt (/ iter-step 2))]
+              [else (iter stepped iter-step)]))]]
+        (cons
+         (point-y t)
+         (delay (again (+ cur step) t (+ samples 1)))))
+       '())))))))
