@@ -1,4 +1,4 @@
-(import (scheme base) (scheme lazy) (scheme write) (scheme inexact) (chariot write-sample) (scheme file) (chariot curves))
+(import (scheme base) (scheme lazy) (scheme write) (scheme inexact) (chariot write-sample) (scheme file) (chariot curves) (chariot fool))
 
 (define (force-list l)
  (if (pair? l) (cons (car l) (force-list (force (cdr l)))) '()))
@@ -7,3 +7,5 @@
 
 (write (force-list (curve '(0 . 0) '(0.2 . -0.3) '(0.3 . 0.4) '(0.7 . 0.1) '(0.6 . 0.7) '(1 . 1) 44100)))
 (write (force-list (curve '(0 . 1) '(0.5 . 0.2) '(0.2 . 0.3) '(0.7 . 0.1) '(0.8 . -1) '(1 . 0) 44100)))
+
+(write (notevector->freq #("G-" 4 #\p) '((#\p (octave-rate . (+ 1 1)) ("C-" . 1) ("G-" . 3/2) ("F!" . (expt 2 5/12))))))

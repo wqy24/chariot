@@ -1,3 +1,10 @@
 ((tempo 2) ; unit: ticks/second
  (funcs
-  ('base . (1 1/4)#|funcs are without node1 and node2|#)))
+  (base (.2 . .5) (.4 . .6)))
+ (scales
+  (#\c 
+   (octave-ratio . 2)
+   ("C-" . 1)
+   ("D-" . (expt 2 1/6))) 
+  (#\3 (octave-ratio . 2) ...)
+  (#\7 "another")))
