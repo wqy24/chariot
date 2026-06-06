@@ -9,5 +9,6 @@
           [octave-rate (foolish-eval (cdr (assq 'octave-rate scale)))]
           [C-0 33/2]
           [note-ratio (foolish-eval (cdr (assoc (vector-ref v 0) scale)))]
-          [octaves (foolish-eval (vector-ref v 1))]]
-    (* C-0 note-ratio (expt octave-rate octaves))))))
+          [octaves (foolish-eval (vector-ref v 1))]
+          [octave-align (foolish-eval (cdr (assq 'octave-align scale)))]]
+    (* C-0 note-ratio (expt 2 octave-align) (expt octave-rate (- octaves octave-align)))))))
