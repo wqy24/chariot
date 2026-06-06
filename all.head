@@ -4,7 +4,8 @@
  (scales
   (#\c 
    (octave-ratio . 2)
+   (octave-align . 0)
    ("C-" . 1)
    ("D-" . (expt 2 1/6))) 
   (#\3 (octave-ratio . 2) ...)
-  (#\7 "another")))
+  (#\7 #|I can't write more scales without any tools|#)))
