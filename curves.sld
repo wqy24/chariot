@@ -1,6 +1,6 @@
 (define-library (chariot curves)
  (import (scheme base) (scheme lazy) (srfi 1) (wqy24 assert) (wqy24 math))
- (export curve)
+ (export bezier constant-line)
  (begin
   (define (curvepoint-deriv1 p0 p1 p2 p3 p4 p5)
    (let [[c4 (+ (* p5 5)
@@ -32,6 +32,7 @@
          (* c2 t^2)
          (* c1 t)
          c0)))))
+
   (define (extremum-deriv1 p0 p1 p2 p3 p4 p5) ; (zero? x) of deriv2, uses Shengjin algorithm
    (let [[a (+ (* p5 20)
                (* p4 -100)
@@ -52,6 +53,7 @@
                (* p1 -40)
                (* p0 20))]]
     (call-with-values (lambda () (shengjin a b c d)) (lambda x x))))
+
   (define (curvepoint p0 p1 p2 p3 p4 p5) ; Five-order bezier curvepoint (normalized)
    (let [[c5 (+ p5
                 (* p4 -5)
@@ -92,14 +94,10 @@
       (lambda (p0 p1 p2 p3 p4 p5)
        (let [[deriv1 (curvepoint-deriv1 p0 p1 p2 p3 p4 p5)]]
         (every
-         (lambda (item)
-          (cond
-           [(<= item p0) (>= (deriv1 p0) 0)]
-           [(>= item p5) (>= (deriv1 p5) 0)]
-           [else (> (deriv1 item) 0)]))
+         (lambda (item) (> (deriv1 item) 0))
          (extremum-deriv1 p0 p1 p2 p3 p4 p5)))) ps)) "Bad curve"))
 
-  (define (curve p0 p1 p2 p3 p4 p5 divisions) ; Returns a lazy list
+  (define (bezier divisions p0 p1 p2 p3 p4 p5) ; Returns a lazy list
    (let-values [[[x0 y0] (car+cdr p0)]
                 [[x1 y1] (car+cdr p1)]
                 [[x2 y2] (car+cdr p2)]
@@ -125,4 +123,9 @@
         (cons
          (point-y t)
          (delay (again (+ target-x step) t (- samples 1)))))
-       '())))))))
+       '())))))
+
+  (define (constant-line len val)
+   (if (zero? len)
+    '()
+    (cons val (delay (constant-line val (- len 1))))))))
