@@ -1,6 +1,6 @@
 (define-library (chariot read)
  (import (scheme base) (scheme read) (chariot config) (scheme lazy) (srfi 132) (srfi 1) (srfi 133))
- (export get-curve)
+ (export get-curve noflag?)
  (begin
   (define-record-type curve-record
    (curve-record porc v1 c1 v2 c2 r)
@@ -68,6 +68,13 @@
   (define (expt-proc higher lower v)
    (* lower (expt (- higher lower) v)))
 
+  (define (points->curve pts len)
+   (assert pts (lambda (p) (> (length pts) 5)) "Too many control points")
+   (let loop [[apps (- 5 (lenght pts))] [p pts]]
+    (if (zero? apps)
+     (apply bezier len p)
+     (loop (- apps 1) (cons (car p) p)))))
+
   (define (curve-record->curve record len)
    (define lens
     (let loop [[c-lens '()] [rlen len] [c-rep (- (repeats record) 1)]]
@@ -81,7 +88,7 @@
     (cond
      [(null? lens) '()]
      [(not c-curve)
-      (loop lens curver (apply bezier (cons (car lens) (curver record))))]
+      (loop (cdr lens) curver (apply bezier (cons (car lens) (curver record))))]
      [(null? c-curve)
       (loop
        (cdr lens)
@@ -89,17 +96,21 @@
         curve2 curve1)
        #f)]
      [else
-      (cons (car c-curve) (delay (loop lens curver (force (cdr c-curve)))))]))
+      (cons (car c-curve) (delay (loop lens curver (force (cdr c-curve)))))])))
 
   (define (curve desc proc len)
    (curve-record->curve (get-curve-record desc proc) len))
+
+  (define-record-type noflag
+   (noflag)
+   noflag?)
 
   (define (get-curve name notes head)
    (let loop [[c-notes notes] [c-curve '()]]
     (cond
      [(null? c-notes) '()]
-     [(pair? c-curve) (loop (force (cdr c-notes)) (force (cdr c-curve)))]
-     [(not (car c-notes)) #f]
+     [(pair? c-curve) (cons (car c-curve) (delay (loop (force (cdr c-notes)) (force (cdr c-curve)))))]
+     [(not (car c-notes)) (cons (noflag) (delay (loop (force (cdr c-notes)) c-curve)))]
      [(eq? name 'freq)
       (loop
        c-notes
@@ -118,6 +129,6 @@
          c-notes
          (cond
           [(pair? (cdr flagpair)) (curve (cdr flagpair) linear-proc (curve-length c-notes))]
-          [(number? (cdr flagpair)) (constant-line (curve-length c-notes) (cdr flagpair)))]
+          [(number? (cdr flagpair)) (constant-line (curve-length c-notes) (cdr flagpair))]
           [else (cons (cdr flagpair) (delay '()))])
-       #f))])))))
+        (noflag))))])))))
