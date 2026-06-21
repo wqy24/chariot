@@ -1,11 +1,12 @@
+
 (define-library (chariot read)
  (import (scheme base) (scheme read) (chariot config) (scheme lazy) (srfi 132) (srfi 1) (srfi 133))
- (export get-curve noflag?)
+ (export get-curve noflag? get-head)
  (begin
   (define-record-type curve-record
    (curve-record porc v1 c1 v2 c2 r)
    curve-record?
-   [proc processer]
+   [processor processer]
    [v1 value1]
    [c1 curve1]
    [v2 value2]
@@ -30,14 +31,22 @@
        (loop #f 'end (car d) v1 v2 r-c1 r-c2)
        (loop #f 'end 1 v1 v2 r-c1 r-c2))]
      [['end]
-      (curve-record proc v1 (reverse r-c1) v2 (reverse r-c2) r)]))) 
+      (let-values [[[front end]
+                    (if (> v1 v2) (values 1 0) (values 0 1))]]
+       (curve-record
+        proc
+        v1
+        (cons `(0 . ,front) (reverse (cons `(1 . ,end) r-c1)))
+        v2
+        (cons `(0 . ,end) (reverse (cons `(1 . ,front) r-c2)))
+        r))]))) 
 
   (define (get-head port1 port2)
    (append (read port1) (read port2)))
 
   (define (get-ticks port)
    (let [[sexp (read port)]]
-    (cons sexp (delay (read-ticks port)))))
+    (cons sexp (delay (get-ticks port)))))
 
   (define (get-notes port head)
    (define frames/tick (truncate (* SAMPLE-RATE (assq 'tempo head))))
@@ -68,11 +77,12 @@
   (define (expt-proc higher lower v)
    (* lower (expt (- higher lower) v)))
 
-  (define (points->curve pts len)
+  (define (points->curve pts len proc higher lower)
    (assert pts (lambda (p) (> (length pts) 5)) "Too many control points")
    (let loop [[apps (- 5 (lenght pts))] [p pts]]
     (if (zero? apps)
-     (apply bezier len p)
+     (map (lambda (v) (proc higher lower v))
+      (apply bezier len p))
      (loop (- apps 1) (cons (car p) p)))))
 
   (define (curve-record->curve record len)
@@ -88,7 +98,16 @@
     (cond
      [(null? lens) '()]
      [(not c-curve)
-      (loop (cdr lens) curver (apply bezier (cons (car lens) (curver record))))]
+      (let*-values [[[v1 v2]
+                     (values (value1 record) (value2 record))]
+                    [[higher lower]
+                     (if (> v1 v2)
+                      (values v1 v2)
+                      (values v2 v1))]]
+       (loop
+        (cdr lens)
+        curver 
+        (points->curve (curver record) (car lens) (processor record) higher lower)))]
      [(null? c-curve)
       (loop
        (cdr lens)
@@ -123,7 +142,7 @@
            expt-proc
            (curve-length c-notes))])))]
      [else
-      (let flagpair [[(assq name notes)]]
+      (let flagpair [[(assv name notes)]]
        (if flagpair
         (loop
          c-notes
