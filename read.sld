@@ -1,12 +1,11 @@
-
 (define-library (chariot read)
- (import (scheme base) (scheme read) (chariot config) (scheme lazy) (srfi 132) (srfi 1) (srfi 133))
- (export get-curve noflag? get-head)
+ (import (scheme base) (scheme read) (wqy24 assert) (chariot config) (srfi 41) (srfi 132) (srfi 1) (srfi 133))
+ (export get-curve noflag? get-head get-notes)
  (begin
-  (define-record-type curve-record
-   (curve-record porc v1 c1 v2 c2 r)
+  (define-record-type curve-record-record
+   (curve-record processor v1 c1 v2 c2 r)
    curve-record?
-   [processor processer]
+   [processor processor]
    [v1 value1]
    [c1 curve1]
    [v2 value2]
@@ -14,74 +13,54 @@
    [r repeats])
 
   (define (get-curve-record desc proc)
-   (let loop [[d desc] [stage 'v1] [r #f] [v1 #f] [v2 #f] [r-c1 '()] [r-c2 '()]]
-    (case stage
-     [['v1] (loop (cdr d) 'c1 r (car d) v2 r-c1 r-c2)]
-     [['c1]
-      (if (pair? (car d))
-       (loop (cdr d) 'c1 r v1 v2 (cons (car d) r-c1) r-c2)
-       (loop d 'v2  r v1 v2 r-c1 r-c2))]
-     [['v2] (loop (cdr d) 'c2 r v1 (car d) r-c1 r-c2)]
-     [['c2]
-      (if (pair? (car d))
-       (loop (cdr d) 'c1 r v1 v2 r-c1 (cons (car d) r-c2))
-       (loop d 'r r v1 v2 r-c1 r-c2))]
-     [['r]
-      (if (pair? d)
-       (loop #f 'end (car d) v1 v2 r-c1 r-c2)
-       (loop #f 'end 1 v1 v2 r-c1 r-c2))]
-     [['end]
-      (let-values [[[front end]
-                    (if (> v1 v2) (values 1 0) (values 0 1))]]
-       (curve-record
-        proc
-        v1
-        (cons `(0 . ,front) (reverse (cons `(1 . ,end) r-c1)))
-        v2
-        (cons `(0 . ,end) (reverse (cons `(1 . ,front) r-c2)))
-        r))]))) 
+   (let*-values [[[v1 c1 v2 c2 r] (apply values desc)]
+                 [[front end] (if (> v1 v2) (values 1 0) (values 0 1))]]
+    (curve-record
+     proc
+     v1
+     `(,front ,@c1 ,end)
+     v2
+     `(,end ,@c2 ,front)
+     r)))
 
   (define (get-head port1 port2)
    (append (read port1) (read port2)))
 
   (define (get-ticks port)
    (let [[sexp (read port)]]
-    (cons sexp (delay (get-ticks port)))))
+    (stream-cons sexp (get-ticks port))))
 
   (define (get-notes port head)
-   (define frames/tick (truncate (* SAMPLE-RATE (assq 'tempo head))))
-   (define ticks (get-ticks port)
+   (define frames/tick (truncate (* SAMPLE-RATE (cdr (assq 'tempo head)))))
+   (define ticks (get-ticks port))
    (let next-tick [[cticks ticks]]
     (if (eof-object? cticks)
-     '()
-     (let [[curr-tick (car ctiks)]]
-      (let next-frame [[frames 0] [notes (list-sort curr-tick)]]
+     stream-null
+     (let [[curr-tick (stream-car cticks)]]
+      (let next-frame [[frames 0] [notes (list-sort (lambda (a b) (<= (car a) (car b))) curr-tick)]]
        (if (>= frames frames/tick)
-        (next-tick (force (cdr cticks)))
-        (let [[result (if (>= frames (* SAMPLE-RATE (caar notes))) (car notes) #f)]]
-         (cons result (delay
-                       (next-frame
-                        (+ frames 1)
-                        (if result (cdr notes) notes))))))))))))
+        (next-tick (stream-cdr cticks))
+        (let [[result (if (< frames (* SAMPLE-RATE (caar notes))) #f (car notes))]]
+         (stream-cons result (next-frame (+ frames 1) (if result (cdr notes) notes))))))))))
 
   (define (curve-length name notes) ; in frames
-   (assert notes (lambda (n) (car n)) "Notes should starts with a note start")
-   (let loop [[len 1] [nnotes (force (cdr notes))]]
+   (assert notes stream-car "Notes should starts with a note start")
+   (let loop [[len 1] [nnotes (stream-cdr notes)]]
     (cond
-     [(null? nnotes) len]
-     [(not (car nnotes)) #0=(loop (+ len 1) (force (cdr nnotes)))]
-     [(eq? name 'freq) len]
-     [(assq name (cddar notes)) len]
-     [else #0#])))
+     [(stream-null? nnotes) len]
+     [(not (stream-car nnotes)) (loop (+ len 1) (stream-cdr nnotes))]
+     [(and (eq? name 'freq) (cadr (stream-car nnotes))) len]
+     [(assv name (cddr (stream-car nnotes))) len]
+     [else (loop (+ len 1) (stream-cdr nnotes))])))
 
   (define (expt-proc higher lower v)
    (* lower (expt (- higher lower) v)))
 
   (define (points->curve pts len proc higher lower)
    (assert pts (lambda (p) (> (length pts) 5)) "Too many control points")
-   (let loop [[apps (- 5 (lenght pts))] [p pts]]
+   (let loop [[apps (- 5 (length pts))] [p pts]]
     (if (zero? apps)
-     (map (lambda (v) (proc higher lower v))
+     (stream-map (lambda (v) (proc higher lower v))
       (apply bezier len p))
      (loop (- apps 1) (cons (car p) p)))))
 
@@ -91,7 +70,7 @@
      (if (zero? c-rep)
       (cons rlen c-lens)
       (let [[clen (truncate (/ len (repeats record)))]]
-       (loop (cons (clen c-lens)) (- rlen clen) (- c-rep 1))))))
+       (loop (cons clen c-lens) (- rlen clen) (- c-rep 1))))))
    (let loop [[lens lens]
               [curver curve1]
               [c-curve #f]]
@@ -106,48 +85,49 @@
                       (values v2 v1))]]
        (loop
         (cdr lens)
-        curver 
+        curver
         (points->curve (curver record) (car lens) (processor record) higher lower)))]
-     [(null? c-curve)
+     [(stream-null? c-curve)
       (loop
        (cdr lens)
        (if (eq? curver curve1)
         curve2 curve1)
        #f)]
      [else
-      (cons (car c-curve) (delay (loop lens curver (force (cdr c-curve)))))])))
+      (stream-cons (stream-car c-curve) (loop lens curver (stream-cdr c-curve)))])))
 
   (define (curve desc proc len)
    (curve-record->curve (get-curve-record desc proc) len))
 
-  (define-record-type noflag
+  (define-record-type noflag-record
    (noflag)
    noflag?)
 
   (define (get-curve name notes head)
-   (let loop [[c-notes notes] [c-curve '()]]
+   (let loop [[c-notes notes] [c-curve stream-null]]
     (cond
-     [(null? c-notes) '()]
-     [(pair? c-curve) (cons (car c-curve) (delay (loop (force (cdr c-notes)) (force (cdr c-curve)))))]
-     [(not (car c-notes)) (cons (noflag) (delay (loop (force (cdr c-notes)) c-curve)))]
+     [(stream-null? c-notes) stream-null]
+     [(stream-pair? c-curve) (cons-stream (stream-car c-curve) (loop (stream-cdr c-notes) (stream-cdr c-curve)))]
+     [(not (stream-car c-notes)) (stream-cons (noflag) (loop (stream-cdr c-notes) c-curve))]
      [(eq? name 'freq)
       (loop
        c-notes
-       (let [[tone (cadar c-notes)]]
+       (let [[tone (cadr (stream-car c-notes))]]
         (cond
          [(vector? tone) (constant-line (curve-length 'freq c-notes) (notevector->freq tone))]
          [(pair? tone)
           (curve
-           (map (lambda (x) (if (vector? x) (notevector->freq x) x)) tone)
+           (map (lambda (x) (if (vector? x) (notevector->freq x (cdr (assq 'scales head))) x)) tone)
            expt-proc
-           (curve-length c-notes))])))]
+           (curve-length c-notes))]
+         [else (stream 0)])))]
      [else
-      (let flagpair [[(assv name notes)]]
+      (let [[flagpair (assv name notes)]]
        (if flagpair
         (loop
          c-notes
          (cond
           [(pair? (cdr flagpair)) (curve (cdr flagpair) linear-proc (curve-length c-notes))]
           [(number? (cdr flagpair)) (constant-line (curve-length c-notes) (cdr flagpair))]
-          [else (cons (cdr flagpair) (delay '()))])
-        (noflag))))])))))
+          [else (stream (cdr flagpair))]))
+        (cons-stream (noflag) (loop (stream-cdr c-notes) c-curve))))])))))

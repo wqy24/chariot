@@ -1,5 +1,5 @@
 (define-library (chariot config)
- (import (only define (scheme base)))
+ (import (only (scheme base) define))
  (export SAMPLE-RATE)
  (begin
-  (define sample-rate 44100)))
+  (define SAMPLE-RATE 44100)))

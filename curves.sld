@@ -1,5 +1,5 @@
 (define-library (chariot curves)
- (import (scheme base) (scheme lazy) (srfi 1) (wqy24 assert) (wqy24 math))
+ (import (scheme base) (scheme lazy) (srfi 1) (srfi 41) (wqy24 assert) (wqy24 math))
  (export bezier constant-line)
  (begin
   (define (curvepoint-deriv1 p0 p1 p2 p3 p4 p5)
@@ -94,7 +94,7 @@
       (lambda (p0 p1 p2 p3 p4 p5)
        (let [[deriv1 (curvepoint-deriv1 p0 p1 p2 p3 p4 p5)]]
         (every
-         (lambda (item) (> (deriv1 item) 0))
+         (lambda (item) (positive? (deriv1 item)))
          (extremum-deriv1 p0 p1 p2 p3 p4 p5)))) ps)) "Bad curve"))
 
   (define (bezier divisions p0 p1 p2 p3 p4 p5) ; Returns a lazy list
@@ -104,8 +104,8 @@
                 [[x3 y3] (car+cdr p3)]
                 [[x4 y4] (car+cdr p4)]
                 [[x5 y5] (car+cdr p5)]]
-    (if (= y0 y5) (error "Curve not appliable" (list p0 p1 p2 p3 p4 p5)))
-    (if (>= x0 x5) (error "You can't go back through the time!" (list p0 p1 p2 p3 p4 p5))) ; Should never occur
+    (when (= y0 y5) (error "Curve not appliable" (list p0 p1 p2 p3 p4 p5)))
+    (when (>= x0 x5) (error "You can't go back through the time!" (list p0 p1 p2 p3 p4 p5))) ; Should never occur
     (validate x0 x1 x2 x3 x4 x5)
     (let* [[step (/ 1 (- divisions 1))]
            [epsilon (/ step 16)]
@@ -120,12 +120,12 @@
            (if (< (abs (- target-x (point-x curt))) epsilon)
             curt
             (iter (- curt (/ (- (point-x curt) target-x) (deriv1-x curt))))))]]
-        (cons
+        (stream-cons
          (point-y t)
-         (delay (again (+ target-x step) t (- samples 1)))))
-       '())))))
+         (again (+ target-x step) t (- samples 1))))
+       stream-null)))))
 
   (define (constant-line len val)
    (if (zero? len)
     '()
-    (cons val (delay (constant-line val (- len 1))))))))
+    (stream-cons val (constant-line val (- len 1)))))))
