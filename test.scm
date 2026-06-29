@@ -18,5 +18,6 @@
  (let* [[head1 (open-input-file "example.head")]
         [head2 (open-input-file "all.head")]
         [notes (open-input-file "example.notes")]
-        [head (get-head head1 head2)]]
-  (write (force-list (get-curve 'freq (get-notes notes head) head)))))
+        [head (get-head head1 head2)]
+        [output (open-output-file "freq.curve")]]
+  (write (map (lambda (a) (if (noflag? a) 'noflag-record!!! a)) (force-list (get-curve 'freq (get-notes notes head) head))) output)))

@@ -1,15 +1,15 @@
-((tempo . 2) ; unit: ticks/second
+((tempo . 2) ; unit: ticks/second
  (funcs
   (base (.2 . .5) (.4 . .6) 2))
  (scales
   (#\c
-   (octave-ratio . 2)
+   (octave-rate . 2)
    (octave-align . 0)
    ("C-" . 1)
    ("D-" . (expt 2 1/6))
-   ("G-" , (expt 2 7/12))
+   ("G-" . (expt 2 7/12))
    ("A#" . (expt 2 5/6)))
-  (#\3 (octave-ratio . 2) (octave-align . 0)
+  (#\3 (octave-rate . 2) (octave-align . 0)
    ("C-" . 1))
-  (#\7 (octave-ratio . 2) (octave-align . 0)
+  (#\7 (octave-rate . 2) (octave-align . 0)
    ("G`" . 14/9))))

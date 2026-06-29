@@ -93,9 +93,13 @@
      (apply
       (lambda (p0 p1 p2 p3 p4 p5)
        (let [[deriv1 (curvepoint-deriv1 p0 p1 p2 p3 p4 p5)]]
-        (every
-         (lambda (item) (positive? (deriv1 item)))
-         (extremum-deriv1 p0 p1 p2 p3 p4 p5)))) ps)) "Bad curve"))
+        (and
+         (positive? (deriv1 0))
+         (positive? (deriv1 1))
+         (every
+          (lambda (item)
+           (positive? (deriv1 item)))
+          (extremum-deriv1 p0 p1 p2 p3 p4 p5))))) ps)) "Bad curve"))
 
   (define (bezier divisions p0 p1 p2 p3 p4 p5) ; Returns a lazy list
    (let-values [[[x0 y0] (car+cdr p0)]
@@ -107,12 +111,12 @@
     (when (= y0 y5) (error "Curve not appliable" (list p0 p1 p2 p3 p4 p5)))
     (when (>= x0 x5) (error "You can't go back through the time!" (list p0 p1 p2 p3 p4 p5))) ; Should never occur
     (validate x0 x1 x2 x3 x4 x5)
-    (let* [[step (/ 1 (- divisions 1))]
+    (let* [[step (/ (- x5 x0) (- divisions 1))]
            [epsilon (/ step 16)]
            [point-x (curvepoint x0 x1 x2 x3 x4 x5)]
            [point-y (curvepoint y0 y1 y2 y3 y4 y5)]
            [deriv1-x (curvepoint-deriv1 x0 x1 x2 x3 x4 x5)]]
-     (let again [[target-x 0] [t0 x0] [samples divisions]]
+     (let again [[target-x x0] [t0 0] [samples divisions]]
       (if (positive? samples)
        (let*
         [[t
@@ -127,5 +131,5 @@
 
   (define (constant-line len val)
    (if (zero? len)
-    '()
-    (stream-cons val (constant-line val (- len 1)))))))
+    stream-null
+    (stream-cons val (constant-line (- len 1) val))))))
