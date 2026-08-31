@@ -19,11 +19,6 @@
 
 (define module (read))
 
-(define channels
- (let [[data (cdr (assq 'channels module))]]
-  (map (lambda (d) (let ([head (append (car d) module)])
-                     (cons head (get-notes (cdr d) head)))) data)))
-
 (define output-conf (cond [(assq 'output module) => cdr] [else '()]))
 
 (define-syntax init-param
@@ -35,26 +30,32 @@
        ...]
      body ...))]))
 
-(init-param output-conf #0=[sample-rate byte-depth big-endian signed]
- (let again [[command (read)]]
+(init-param output-conf [sample-rate byte-depth big-endian signed]
+ (define channels
+  (let [[data (cdr (assq 'channels module))]]
+   (map (lambda (d) (let ([head (append (car d) module)])
+                     (cons head (get-notes (cdr d) head)))) data)))
+
+ (let again [[command (read)] [cache-hint 0]]
   (case (car command)
    [[play]
     (let* [[start-frm (cadr command)]
            [len (caddr command)]
-           [chns (map (lambda (c) (cons (car c) (stream-drop (cdr c) start-frm))) channels)]
            [audio-stream
             (merge-channels
-             (map (lambda (c) (render-channel (car c) (cdr c))) chns)
-             (map (lambda (c) (cdr (assq 'volume (car c)))) chns))]]
+             (map (lambda (c) (render-channel channel cache-hint)) channels)
+             (map (lambda (c) (cdr (assq 'volume (car c)))) channels))]]
      (write-bytevector
       (codec
        (stream->list
-        (if (integer? len) (stream-take audio-stream len) audio-stream)))))
-    (again (read))]
+        (let [[totake (stream-drop audio-stream start-frm)]]
+         (if (integer? len) (stream-take totake len) totake))))))
+    (again (read) cache-hint)]
    [[tmp-set]
     (let [[p (assq (cadr command) module)]]
      (if p
       (set-cdr! p (caddr command))
       (set! module (cons (cons (cadr command) (caddr command)) module))))
-    (again (read))]
+    (again (read) cache-hint)]
+   [[cache-hint-set] (again (read) (cadr command))]
    [[exit] 0])))

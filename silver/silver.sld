@@ -19,17 +19,19 @@
  (import (scheme base) (wqy24 vlws) (srfi 1) (scheme inexact) (chariot inst-utils))
  (export renderer)
  (begin
-  (define (renderer config)
+  (define (renderer config cache-hint get-cache insert-cache!)
    (values '(freq)
     (lambda (name flags sr)
      (let [[inst (cdr (assq name config))]
            [freq (cdr (assq 'freq flags))]]
       (stream-map
        (lambda (f i)
-        (apply +
-         (map
-          (lambda (x fmult)
-           (let [[a (car x)] [ph (cdr x)]]
-            (* a (cos (+ ph (* 2 (acos -1) fmult (/ f sr) i))))))
+        (if (< i cache-hint) ;; Not a useful cache but showed how cache may work
+         0
+         (apply +
+          (map
+           (lambda (x fmult)
+            (let [[a (car x)] [ph (cdr x)]]
+             (* a (cos (+ ph (* 2 (acos -1) fmult (/ f sr) i)))))))
           inst (iota (length inst) 1 1))))
-       (with-default freq 0) (stream-from 0))))))))
+       (with-default freq 0) index)))))))
