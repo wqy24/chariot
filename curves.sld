@@ -115,7 +115,7 @@
          (positive? (deriv1 1))
          (every
           (lambda (item)
-           (positive? (deriv1 item)))
+           (if (<= 0 item 1) (positive? (deriv1 item)) #t))
           (extremum-deriv1 p0 p1 p2 p3 p4 p5))))) ps)) "Bad curve"))
 
   (define (bezier divisions p0 p1 p2 p3 p4 p5) ; Returns a lazy list
