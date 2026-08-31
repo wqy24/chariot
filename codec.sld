@@ -16,7 +16,7 @@
  |#
 
 (define-library (chariot codec)
- (import (except (scheme base) define) (only (srfi 1) every concatenate) (only (srfi 219) define) (chariot config) (scheme write))
+ (import (except (scheme base) define) (only (srfi 219) define) (chariot config) (scheme write))
  (export codec)
  (begin
   (define ((scale byte-depth) data)
@@ -29,7 +29,7 @@
    (let loop [[udata (if (negative? data) (+ data (expt 2 (* 8 byte-depth))) data)]
               [res '()] [rbdepth byte-depth]]
     (if (zero? rbdepth)
-     (if big-endian res (reverse res))
+     (apply bytevector (if big-endian res (reverse res)))
      (loop
       (quotient udata 256)
       (cons (remainder udata 256) res)
@@ -38,8 +38,8 @@
   (define (codec data)
    (unless (integer? (byte-depth)) (error "Byte depth must be integer" (byte-depth)))
    (unless (positive? (byte-depth)) (error "Byte depth must be positive" (byte-depth)))
-   (let* [[cldata (map (lambda (x) (cond [(negative? x) 0] [(> x 1) 1] [else x])) data)]
-          [sdata (map (scale (byte-depth)) cldata)]
-          [idata (if (signed) sdata (map (unsign (byte-depth)) sdata))]
-          [exploded (map (explode (byte-depth) (big-endian)) idata)]]
-    (apply bytevector (concatenate exploded))))))
+   (let* [[cldata (vector-map (lambda (x) (cond [(negative? x) 0] [(> x 1) 1] [else x])) (list->vector data))]
+          [sdata (vector-map (scale (byte-depth)) cldata)]
+          [idata (if (signed) sdata (vector-map (unsign (byte-depth)) sdata))]
+          [exploded (vector-map (explode (byte-depth) (big-endian)) idata)]]
+    (vector-fold bytevector-append exploded)))))
