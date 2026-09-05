@@ -15,11 +15,13 @@
  | along with CHARIOT. If not, see <https://www.gnu.org/licenses/>.
  |#
 
-(import (scheme base) (scheme cxr) (scheme read) (wqy24 vlws) (chariot config) (chariot read) (chariot render) (chariot codec) (wqy24 debug))
+(import (scheme base) (scheme cxr) (scheme read) (wqy24 vlws) (chariot config) (chariot read) (chariot render) (chariot codec) (wqy24 debug) (scheme file) (srfi 133))
 
 (define module (read))
 
 (define output-conf (cond [(assq 'output module) => cdr] [else '()]))
+
+(define vector-size 200) ;; For gosh
 
 (define-syntax init-param
  (syntax-rules ()
@@ -36,26 +38,41 @@
    (map (lambda (d) (let ([head (append (car d) module)])
                      (cons head (get-notes (cdr d) head)))) data)))
 
- (let again [[command (read)] [cache-hint 0]]
+ (let again [[command (read)] [oport (current-output-port)]]
   (case (car command)
    [[play]
     (let* [[start-frm (cadr command)]
            [len (caddr command)]
+           [file (cadddr command)]
            [audio-stream
             (merge-channels
-             (map (lambda (c) (render-channel channel cache-hint)) channels)
+             (map (lambda (c) (render-channel c start-frm)) channels)
              (map (lambda (c) (cdr (assq 'volume (car c)))) channels))]]
      (write-bytevector
       (codec
-       (stream->list
-        (let [[totake (stream-drop audio-stream start-frm)]]
-         (if (integer? len) (stream-take totake len) totake))))))
-    (again (read) cache-hint)]
+       (list->vector
+        (stream->list
+         (stream-take (stream-drop audio-stream start-frm) len))))
+      oport))
+    (again (read) oport)]
+   [[play-all]
+    (let loop [[audio-stream
+                (merge-channels
+                 (map (lambda (c) (render-channel c 0)) channels)
+                 (map (lambda (c) (cdr (assq 'volume (car c)))) channels))]]
+     (define chunk (list->vector (stream->list vector-size audio-stream)))
+     (write-bytevector (codec chunk) oport)
+     (if (= (vector-length chunk) vector-size)
+      (loop (stream-drop audio-stream vector-size))))
+    (again (read) oport)]
    [[tmp-set]
     (let [[p (assq (cadr command) module)]]
      (if p
       (set-cdr! p (caddr command))
       (set! module (cons (cons (cadr command) (caddr command)) module))))
-    (again (read) cache-hint)]
-   [[cache-hint-set] (again (read) (cadr command))]
+    (again (read) oport)]
+   [[output-file-set]
+    (let [[p (cadr command)]]
+     (close-port oport)
+     (again (read) (open-binary-output-file p)))]
    [[exit] 0])))

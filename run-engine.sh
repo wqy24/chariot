@@ -17,5 +17,5 @@
 
 
 # cat example.chm commands | gosh -r 7 -I . -I .. -I ./silver/ chariot-engine.scm > a.out
- cat example.chm commands | chibi-scheme -B#t -I . -I .. -I ./silver/ -I ./wqy24/ chariot-engine.scm
-
+# cat example.chm commands | chibi-scheme -B#t -I . -I .. -I ./silver/ -I ./wqy24/ chariot-engine.scm
+ cat example.chm commands | ypsilon -7 --sitelib=. --sitelib=.. --sitelib=./silver/  chariot-engine.scm

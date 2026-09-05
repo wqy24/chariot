@@ -22,11 +22,4 @@
   (define (with-default s d)
    (stream-map (lambda (i) (if (procedure? i) d i)) s))
 
-  (define index (stream-from 0))
-
-  (define-syntax with-cache
-   (syntax-rules ()
-    [(_ cache key prog)
-     (cond
-      [(assq key cache) => cdr]
-      [else prog])])))
+  (define index (stream-from 0))))

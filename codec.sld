@@ -16,7 +16,7 @@
  |#
 
 (define-library (chariot codec)
- (import (except (scheme base) define) (only (srfi 219) define) (chariot config) (scheme write))
+ (import (except (scheme base) define) (only (srfi 219) define) (chariot config) (scheme write) (srfi 133))
  (export codec)
  (begin
   (define ((scale byte-depth) data)
@@ -38,8 +38,8 @@
   (define (codec data)
    (unless (integer? (byte-depth)) (error "Byte depth must be integer" (byte-depth)))
    (unless (positive? (byte-depth)) (error "Byte depth must be positive" (byte-depth)))
-   (let* [[cldata (vector-map (lambda (x) (cond [(negative? x) 0] [(> x 1) 1] [else x])) (list->vector data))]
+   (let* [[cldata (vector-map (lambda (x) (cond [(negative? x) 0] [(> x 1) 1] [else x])) data)]
           [sdata (vector-map (scale (byte-depth)) cldata)]
           [idata (if (signed) sdata (vector-map (unsign (byte-depth)) sdata))]
           [exploded (vector-map (explode (byte-depth) (big-endian)) idata)]]
-    (vector-fold bytevector-append exploded)))))
+    (vector-fold bytevector-append #u8() exploded)))))
